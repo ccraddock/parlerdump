@@ -18,6 +18,10 @@ urls=(
   VID015.txt
   VID016.txt
   VID017.txt
+  VID018.txt
+  VID019.txt
+  VID020.txt
+  VID021.txt  
 )
 
 (
