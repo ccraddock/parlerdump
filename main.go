@@ -78,7 +78,9 @@ func main() {
 			}
 			eg.Go(func() error {
 				defer sem.Release(1)
-				return archive(egCtx, bucket, url, s3, manager)
+				// don't die on failures
+				_ = archive(egCtx, bucket, url, s3, manager)
+				return nil
 			})
 		}
 		return nil
