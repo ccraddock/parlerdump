@@ -65,10 +65,11 @@ for i in ${!urls[@]}; do
   echo "starting ${server}"
   ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ec2-user@${server} "$(cat <<EOF
 cd /home/ec2-user/parlerdump
+git pull
 wget -q -O - ${url} | \
   AWS_PROFILE=parler \
   PARLER_BUCKET=parlerdump \
-  PARLER_CONCURRENCY=40 go run main.go
+  PARLER_CONCURRENCY=20 go run main.go
 EOF
 )" &
 done
