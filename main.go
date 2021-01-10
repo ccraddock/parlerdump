@@ -15,6 +15,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/hashicorp/go-retryablehttp"
 	"golang.org/x/sync/errgroup"
@@ -52,6 +53,7 @@ func main() {
 	sess, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	})
+	s3 := s3.New(sess)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -76,7 +78,7 @@ func main() {
 			}
 			eg.Go(func() error {
 				defer sem.Release(1)
-				return archive(egCtx, bucket, url, manager)
+				return archive(egCtx, bucket, url, s3, manager)
 			})
 		}
 		return nil
@@ -90,6 +92,7 @@ func archive(
 	ctx context.Context,
 	bucket string,
 	url string,
+	S3 *s3.S3,
 	manager *s3manager.Uploader,
 ) error {
 	client := retryablehttp.NewClient()
@@ -99,10 +102,22 @@ func archive(
 	if err != nil {
 		return err
 	}
+	destFile := path.Base(url)
+	// prevent uploading the same object twice
+	// no checking on size here so it's possible this will leave partial
+	// transfers failed.
+	_, err = S3.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(destFile),
+	})
+	if err == nil {
+		fmt.Printf("skipping %s\n", url)
+		return nil
+	}
 	fmt.Printf("archiving %s\n", url)
 	if _, err := manager.UploadWithContext(ctx, &s3manager.UploadInput{
 		Bucket: aws.String(bucket),
-		Key:    aws.String(path.Base(url)),
+		Key:    aws.String(destFile),
 		Body:   req.Body,
 	}); err != nil {
 		return err
