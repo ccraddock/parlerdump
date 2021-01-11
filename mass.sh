@@ -60,7 +60,7 @@ export PARLER_BUCKET=parlerdump
 export PARLER_CONCURRENCY=10
 cd /home/ec2-user/parlerdump
 git pull
-wget -q -O - ${url} | sed 1,30000d | go run main.go
+wget -q -O - ${url} | go run meta.go
 EOF
 )" &
   sleep 1
