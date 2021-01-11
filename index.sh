@@ -68,7 +68,7 @@ for i in ${!urls[@]}; do
 export AWS_DEFAULT_REGION=us-east-1
 export AWS_PROFILE=parler
 export PARLER_BUCKET=parlerdump
-export PARLER_CONCURRENCY=10
+export PARLER_CONCURRENCY=20
 cd /home/ec2-user/parlerdump
 git pull
 wget -q -O - ${url} | go run meta.go

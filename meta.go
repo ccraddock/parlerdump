@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -17,6 +18,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/mattetti/filebuffer"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
@@ -63,6 +66,10 @@ func main() {
 	for scanner.Scan() {
 		urls = append(urls, scanner.Text())
 	}
+	// Create streaming uploader.
+	manager := s3manager.NewUploader(sess, func(u *s3manager.Uploader) {
+		u.BufferProvider = s3manager.NewBufferedReadSeekerWriteToPool(25 * 1024 * 1024)
+	})
 	fmt.Printf("scanned %d urls, extracting metadata to s3 with concurrency of %s\n", len(urls), concurrency)
 	// Concurrently process them.
 	sem := semaphore.NewWeighted(int64(maxRequests))
@@ -76,7 +83,7 @@ func main() {
 			eg.Go(func() error {
 				defer sem.Release(1)
 				// don't die on failures
-				if err := meta(egCtx, bucket, url, s3); err != nil {
+				if err := meta(egCtx, bucket, url, s3, manager); err != nil {
 					fmt.Printf("failure: %s", err)
 				}
 				return nil
@@ -94,6 +101,7 @@ func meta(
 	bucket string,
 	url string,
 	S3 *s3.S3,
+	manager *s3manager.Uploader,
 ) error {
 	srcFile := path.Base(url)
 	destFile := "meta-" + srcFile + ".json"
@@ -111,6 +119,8 @@ func meta(
 		Key:    aws.String(srcFile),
 	})
 	if err != nil {
+		// try to archive missed files for second pass
+		_ = archive(ctx, bucket, srcFile, S3, manager)
 		return err
 	}
 	defer object.Body.Close()
@@ -128,5 +138,42 @@ func meta(
 		Key:    aws.String(destFile),
 		Body:   filebuffer.New(out.Bytes()),
 	})
+	return nil
+}
+
+func archive(
+	ctx context.Context,
+	bucket string,
+	url string,
+	S3 *s3.S3,
+	manager *s3manager.Uploader,
+) error {
+	client := retryablehttp.NewClient()
+	client.Logger = log.New(ioutil.Discard, "", 0)
+	request, _ := retryablehttp.NewRequest("GET", url, nil)
+	req, err := client.Do(request.WithContext(ctx))
+	if err != nil {
+		return err
+	}
+	destFile := path.Base(url)
+	// prevent uploading the same object twice
+	// no checking on size here so it's possible this will leave partial
+	// transfers failed.
+	_, err = S3.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(destFile),
+	})
+	if err == nil {
+		fmt.Printf("skipping %s\n", url)
+		return nil
+	}
+	fmt.Printf("archiving %s\n", url)
+	if _, err := manager.UploadWithContext(ctx, &s3manager.UploadInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(destFile),
+		Body:   req.Body,
+	}); err != nil {
+		return err
+	}
 	return nil
 }
