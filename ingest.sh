@@ -24,7 +24,7 @@ urls=(
   VID021.txt  
 )
 
-fleetOne=(
+servers=(
   54.175.86.159
   18.234.115.53
   34.235.161.204
@@ -49,9 +49,21 @@ fleetOne=(
   54.209.99.120
 )
 
+#
+#for server in ${fleetThree[*]}; do
+#  echo "setting ip ${server}"
+#  ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ec2-user@${server} "sudo yum -y install golang && git clone https://github.com/tkellen/parlerdump.git && mkdir ~/.aws" &
+#done
+#wait
+#for server in ${fleetThree[*]}; do
+#  scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ~/.aws/credentials ec2-user@${server}:~/.aws &
+#  scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ~/.aws/config ec2-user@${server}:~/.aws &
+#done
+#wait
+
 for i in ${!urls[@]}; do
   url="https://donk.sh/06d639b2-0252-4b1e-883b-f275eff7e792/${urls[$i]}"
-  server="${fleetOne[$i]}"
+  server="${servers[$i]}"
   echo "starting ${server}"
   ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ec2-user@${server} "$(cat <<EOF
 export AWS_DEFAULT_REGION=us-east-1
@@ -60,7 +72,7 @@ export PARLER_BUCKET=parlerdump
 export PARLER_CONCURRENCY=10
 cd /home/ec2-user/parlerdump
 git pull
-wget -q -O - ${url} | go run meta.go
+wget -q -O - ${url} | go run main.go
 EOF
 )" &
   sleep 1
