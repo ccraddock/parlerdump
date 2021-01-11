@@ -24,7 +24,7 @@ urls=(
   VID021.txt  
 )
 
-servers=(
+fleetOne=(
   54.175.86.159
   18.234.115.53
   34.235.161.204
@@ -49,29 +49,21 @@ servers=(
   54.209.99.120
 )
 
-#for server in ${servers[*]}; do
-#  echo "setting ip ${server}"
-#  ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ec2-user@${server} "sudo yum -y install golang && git clone https://github.com/tkellen/parlerdump.git && mkdir ~/.aws" &
-#done
-
-#for server in ${servers[*]}; do
-#  scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ~/.aws/credentials ec2-user@${server}:~/.aws &
-#  scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ~/.aws/config ec2-user@${server}:~/.aws &
-#done
-
 for i in ${!urls[@]}; do
   url="https://donk.sh/06d639b2-0252-4b1e-883b-f275eff7e792/${urls[$i]}"
-  server="${servers[$i]}"
+  server="${fleetOne[$i]}"
   echo "starting ${server}"
   ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no ec2-user@${server} "$(cat <<EOF
+export AWS_DEFAULT_REGION=us-east-1
+export AWS_PROFILE=parler
+export PARLER_BUCKET=parlerdump
+export PARLER_CONCURRENCY=10
 cd /home/ec2-user/parlerdump
 git pull
-wget -q -O - ${url} | \
-  AWS_PROFILE=parler \
-  PARLER_BUCKET=parlerdump \
-  PARLER_CONCURRENCY=20 go run main.go
+wget -q -O - ${url} | sed 1,30000d | go run main.go
 EOF
 )" &
+  sleep 1
 done
 
 wait
