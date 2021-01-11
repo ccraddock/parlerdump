@@ -76,7 +76,9 @@ func main() {
 			eg.Go(func() error {
 				defer sem.Release(1)
 				// don't die on failures
-				_ = meta(egCtx, bucket, url, s3)
+				if err := meta(egCtx, bucket, url, s3); err != nil {
+					fmt.Printf("failure: %s", err)
+				}
 				return nil
 			})
 		}
@@ -109,7 +111,6 @@ func meta(
 		Key:    aws.String(srcFile),
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stdout, "fuck")
 		return err
 	}
 	defer object.Body.Close()
