@@ -96,7 +96,7 @@ func meta(
 	S3 *s3.S3,
 ) error {
 	srcFile := path.Base(url)
-	destFile := srcFile + ".json"
+	destFile := "meta-" + srcFile + ".json"
 	// prevent uploading the same metadata twice
 	_, err := S3.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(bucket),
